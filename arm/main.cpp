@@ -40,50 +40,50 @@ int blend(int t, int src, int dst) {
 #define FAST	120
 #define PAUSE	200
 
-const int animation[][NUMPIXELS+1] = {
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	},
+const int animation[] = {
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	,
 
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	},
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	,
 
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	},
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	,
 
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	},
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	,
 
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	},
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	,
 
-		{ FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	},
-		{ FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	},
-		{ FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	},
+		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	,
+		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	,
+		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	,
 };
-const int frameCount = sizeof(animation) / sizeof(animation[0]);
+const int frameCount = sizeof(animation) / (sizeof(animation[0]) * (NUMPIXELS+1));
 
 
 int lastReport = 0;
@@ -97,15 +97,14 @@ int curFrameTime;
 void setup() {
 	Serial.begin(9600);
 	Serial3.begin(115200);
+
 	pixels.begin();
-	Serial.println("setup done");
 
 	pinMode(13, OUTPUT);
-	digitalWrite(13, HIGH);
 
 	lastMillis = millis();
 	curFrame = 0;
-	curFrameTime = frameTimeLeft = animation[curFrame][NUMPIXELS];
+	curFrameTime = frameTimeLeft = animation[curFrame*(NUMPIXELS+1) + NUMPIXELS];
 }
 
 void loop() {
@@ -118,27 +117,26 @@ void loop() {
 
 	while(frameTimeLeft < 0) {
 		curFrame = nextFrame;
-		curFrameTime = animation[curFrame][NUMPIXELS];
+		curFrameTime = animation[curFrame*(NUMPIXELS+1) + NUMPIXELS];
 		frameTimeLeft += curFrameTime;
 	}
 
 	int t = gammasLength * (curFrameTime-frameTimeLeft) / curFrameTime;
 
 	for(int i=0; i<NUMPIXELS; i++) {
-		pixels.setPixelColor(i, blend(t, animation[curFrame][i], animation[nextFrame][i]));
+		pixels.setPixelColor(i, blend(t, animation[curFrame*(NUMPIXELS+1) + i], animation[nextFrame*(NUMPIXELS+1) + i]));
 	}
 	pixels.show();
 
-	frameCounter++;
+/*	frameCounter++;
 	int curReport = millis() / 1000;
 	if(curReport != lastReport) {
 		Serial.print(frameCounter);
-
 		Serial.println();
 
 		lastReport = curReport;
 		frameCounter = 0;
-	}
+	}*/
 
 	lastMillis = curMillis;
 }
