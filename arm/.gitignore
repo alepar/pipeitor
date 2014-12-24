@@ -1,0 +1,7 @@
+.cproject
+.project
+.settings
+spec.d
+/Libraries
+/Release
+/Debug
