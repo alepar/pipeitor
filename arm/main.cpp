@@ -1,143 +1,232 @@
-#include <Adafruit_NeoPixel.h>
-#include <math.h>
-#include "gammas.h"
-
 #define PIN         2
+#define INFOLED		13
+
 #define NUMPIXELS	7
-#define GAMMA 		2.2
+#define FRAMELENGTH	(NUMPIXELS+1)
 
-#define PERIOD 		300
+#define XBEESTATE_WAIT		1
+#define XBEESTATE_RECEIVE	2
 
+#include <math.h>
+
+#include <Adafruit_NeoPixel.h>
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
-int blend(int t, int src, int dst) {
-	if(src == dst) {
-		return src;
-	}
+#include <XBee.h>
+XBee xbee = XBee();
 
-	double srcMult = gammas[1000-t];
-	double dstMult = gammas[t];
-
-	int srcR = src >> 16;
-	int dstR = dst >> 16;
-	int srcG = (src >> 8) & 0xff;
-	int dstG = (dst >> 8) & 0xff;
-	int srcB = src & 0xff;
-	int dstB = dst & 0xff;
-
-	int resR = srcR==dstR ? srcR : srcR*srcMult + dstR*dstMult;
-	int resG = srcG==dstG ? srcG : srcG*srcMult + dstG*dstMult;
-	int resB = srcB==dstB ? srcB : srcB*srcMult + dstB*dstMult;
-
-	return resR<<16 | resG<<8 | resB;
-}
-
-#define FULL 	0x002000
-#define EMPTY 	0x001000
-
-#define SLOW	300
-#define MED		210
-#define FAST	120
-#define PAUSE	200
-
-const int animation[] = {
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	,
-
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	,
-
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FAST	,
-
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, MED	,
-
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, SLOW	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	,
-
-		FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL	, FULL 	, MED	,
-		FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL	, FULL 	, FAST	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, FULL 	, MED	,
-		FULL	, FULL	, FULL	, FULL	, FULL	, FULL	, EMPTY	, SLOW	,
-};
-const int frameCount = sizeof(animation) / (sizeof(animation[0]) * (NUMPIXELS+1));
+#include "gammas.h"
 
 
-int lastReport = 0;
-int frameCounter = 0;
+// animation
+uint32_t *frames = NULL;
+uint16_t frameCount = 0;
+uint8_t animationState = 0;
 
-int curFrame;
-int frameTimeLeft;
-int lastMillis;
-int curFrameTime;
+// animation - current frame state
+uint16_t curFrame;
+uint32_t frameTimeLeft;
+uint32_t curFrameTime;
 
-void setup() {
-	Serial.begin(9600);
-	Serial3.begin(115200);
+uint64_t lastMillis;
+uint64_t curMillis;
 
-	pixels.begin();
+// xbee state
+uint8_t xbeeState = XBEESTATE_WAIT;
+uint64_t xbeeLastTransmissionMillis;
 
-	pinMode(13, OUTPUT);
+uint32_t *data = NULL;
+uint32_t rxSH, rxSL;
 
-	lastMillis = millis();
-	curFrame = 0;
-	curFrameTime = frameTimeLeft = animation[curFrame*(NUMPIXELS+1) + NUMPIXELS];
-}
+// fps counter
+uint64_t lastReport = 0;
+uint16_t frameCounter = 0;
 
-void loop() {
-	int curMillis = millis();
-	int deltaMillis = curMillis - lastMillis;
-	int nextFrame = (curFrame+1) % frameCount;
-
-	frameTimeLeft -= deltaMillis;
-
-
-	while(frameTimeLeft < 0) {
-		curFrame = nextFrame;
-		curFrameTime = animation[curFrame*(NUMPIXELS+1) + NUMPIXELS];
-		frameTimeLeft += curFrameTime;
-	}
-
-	int t = gammasLength * (curFrameTime-frameTimeLeft) / curFrameTime;
-
-	for(int i=0; i<NUMPIXELS; i++) {
-		pixels.setPixelColor(i, blend(t, animation[curFrame*(NUMPIXELS+1) + i], animation[nextFrame*(NUMPIXELS+1) + i]));
-	}
-	pixels.show();
-
-/*	frameCounter++;
-	int curReport = millis() / 1000;
+void printFps() {
+	int curReport = curMillis / 1000;
 	if(curReport != lastReport) {
 		Serial.print(frameCounter);
-		Serial.println();
+		Serial.print('\r');
 
 		lastReport = curReport;
 		frameCounter = 0;
-	}*/
+	}
 
 	lastMillis = curMillis;
+}
+
+void displayFrame() {
+	uint8_t deltaMillis = curMillis - lastMillis;
+	uint16_t nextFrame = (curFrame+1) % frameCount;
+
+	frameTimeLeft -= deltaMillis;
+
+	while(frameTimeLeft < 0) {
+		curFrame = nextFrame;
+		nextFrame = (curFrame+1) % frameCount;
+
+		curFrameTime = animation[curFrame*FRAMELENGTH + NUMPIXELS];
+		frameTimeLeft += curFrameTime;
+	}
+
+	uint16_t t = gammasLength * (curFrameTime-frameTimeLeft) / curFrameTime;
+
+	for(int i=0; i<NUMPIXELS; i++) {
+		pixels.setPixelColor(i, blend(t, animation[curFrame*FRAMELENGTH + i], animation[nextFrame*FRAMELENGTH + i]));
+	}
+	pixels.show();
+
+	frameCounter++;
+}
+
+void (ZBRxResponse& packet) {
+	if (xbeeState == XBEESTATE_WAIT) {
+		//todo handle checkin response or incoming animation
+
+		/*
+			incoming animation:
+			* read header (length)
+			* allocate memory
+			* remember source address
+		*/
+
+		/*
+			checkin response - update lastCheckin time if in proper state
+		*/
+	}
+	else if(xbeeState == XBEESTATE_RECEIVE) {
+		//todo handle incoming animation
+
+		//check for sender address
+
+		xbeeLastTransmissionMillis = curMillis; // todo if(successful)
+
+		//check if this is all of it and send ACK
+	}
+}
+
+void blinkInfoLed(uint8_t count) {
+	for (uint8_t i=0; i<count; i++) {
+		digitalWrite(INFOLED, HIGH);
+		delay(50);
+		digitalWrite(INFOLED, LOW);
+		if(i+1<count){
+			delay(200);
+		}
+	}
+}
+
+void waitForModem() {
+	while(1) {
+		AtCommandRequest cmdAt = AtCommandRequest("");
+		xbee.send(cmdAt);
+		xbee.readPacket(100);
+		if(xbee.getResponse().isAvailable) {
+			if (xbee.getResponse().getApiId() == AT_RESPONSE) {
+				AtCommandResponse atResponse = AtCommandResponse();
+				xbee.getResponse().getAtCommandResponse(atResponse);
+				if (atResponse.getStatus() == 0) {
+					return;
+				}
+			}
+		}
+	}
+}
+
+uint8_t checkinPayload[] = "checkin"; // todo construct proper checkin payload
+XBeeAddress64 addrBcast = XBeeAddress64(0x00000000, 0x0000FFFF);
+ZBTxRequest txCheckin = ZBTxRequest(addrBcast, checkinPayload, sizeof(checkinPayload));
+
+void sendCheckin() {
+	Serial.println("INFO\tsending checkin");
+  	xbee.send(txCheckin);
+}
+
+void waitForBootCheckin() {
+  	while(1) {
+	  	sendCheckin();
+	  	uint64_t sentMillis = millis();
+	  	while(millis() - sentMillis < 500) {
+		  	xbee.readPacket(100);
+		  	if (xbee.getResponse().isAvailable()) {
+		  		XBeeResponse& packet = xbee.getResponse();
+		  		if(packet.getApiId() == ZB_RX_RESPONSE) {
+					ZBRxResponse rxPacket;
+					packet.getZBRxResponse(rxPacket);
+					// todo check that checkin response belongs to coordinator
+
+					Serial.println("INFO\tcheckin OK");
+					xbeeState = XBEESTATE_WAIT;
+					xbeeLastTransmissionMillis = millis();
+					return;
+		  		}
+		  	}
+	    }
+	}	
+}
+
+void setup() {
+	Serial.begin(115200);
+	Serial3.begin(115200);
+	xbee.setSerial(Serial3);
+
+	pixels.begin();
+
+	pinMode(INFOLED, OUTPUT);
+	blinkInfoLed(1);
+	Serial.println("INFO\tbooted");
+
+	waitForModem();
+	blinkInfoLed(2);
+	Serial.println("INFO\tmodem AT OK");
+
+	waitForBootCheckin();
+	blinkInfoLed(3);
+	Serial.println("INFO\tboot checkin passed");
+
+	// TODO move chunk below to 'start animation'
+	lastMillis = millis();
+	curFrame = 0;
+	curFrameTime = frameTimeLeft = animation[curFrame*FRAMELENGTH + NUMPIXELS];
+}
+
+void loop() {
+	curMillis = millis();
+	if(frames && frameCounter) {
+		displayFrame();
+	}
+	printFps();	
+
+	curMillis = millis();
+	if (xbeeState == XBEESTATE_WAIT && (curMillis-xbeeLastTransmissionMillis)>15000) {
+		sendCheckin();
+	}
+	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-xbeeLastTransmissionMillis)>15000) {
+		Serial.println("WARN\tdata receive timed outed");
+		xbeeState = XBEESTATE_WAIT;
+	}
+
+	xbee.readPacket();
+	XBeeResponse& packet = xbee.getResponse();
+	if (xbee.getResponse().isAvailable()) {
+		Serial.print("DEBUG\tgot packet, api id: "); Serial.println(packet.getApiId());
+		switch(packet.getApiId()) {
+			case ZB_RX_RESPONSE:
+				digitalWrite(INFOLED, HIGH);
+				ZBRxResponse rxPacket;
+				packet.getZBRxResponse(rxPacket);
+				handleIncomingData(rxPacket);
+				digitalWrite(INFOLED, LOW);
+				break;
+			case ZB_TX_STATUS_RESPONSE:
+				// ignore this
+				// assuming that network layer is good enough for handling most common cases
+				// and the rest - server will just retry
+				break;
+			default:
+				Serial.print("WARN\tunhandled packet, api id: "); 
+				Serial.println(packet.getApiId());
+		}
+	}
 }
 

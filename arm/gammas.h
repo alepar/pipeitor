@@ -105,4 +105,27 @@ const float gammas[] = {
 };
 
 const int gammasLength = sizeof(gammas) / sizeof(gammas[0]);
+
+int blend(int t, int src, int dst) {
+	if(src == dst) {
+		return src;
+	}
+
+	double srcMult = gammas[1000-t];
+	double dstMult = gammas[t];
+
+	int srcR = src >> 16;
+	int dstR = dst >> 16;
+	int srcG = (src >> 8) & 0xff;
+	int dstG = (dst >> 8) & 0xff;
+	int srcB = src & 0xff;
+	int dstB = dst & 0xff;
+
+	int resR = srcR==dstR ? srcR : srcR*srcMult + dstR*dstMult;
+	int resG = srcG==dstG ? srcG : srcG*srcMult + dstG*dstMult;
+	int resB = srcB==dstB ? srcB : srcB*srcMult + dstB*dstMult;
+
+	return resR<<16 | resG<<8 | resB;
+}
+
 #endif
