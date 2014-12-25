@@ -33,7 +33,7 @@ int blend(int t, int src, int dst) {
 }
 
 #define FULL 	0x002000
-#define EMPTY 	0x001000
+#define EMPTY 	0x000700
 
 #define SLOW	300
 #define MED		210
