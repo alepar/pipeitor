@@ -1,5 +1,5 @@
 #define PIN         2
-#define INFOLED		13
+#define INFO_LED		13
 
 #define NUMPIXELS	7
 #define FRAMELENGTH	(NUMPIXELS+1)
@@ -43,7 +43,7 @@ uint64_t lastReport = 0;
 uint16_t frameCounter = 0;
 
 void printFps() {
-	int curReport = curMillis / 1000;
+	uint64_t curReport = curMillis / 1000;
 	if(curReport != lastReport) {
 		Serial.print(frameCounter);
 		Serial.print('\r');
@@ -56,7 +56,8 @@ void printFps() {
 }
 
 void displayFrame() {
-	uint8_t deltaMillis = curMillis - lastMillis;
+	// todo fix animation
+/*	uint8_t deltaMillis = curMillis - lastMillis;
 	uint16_t nextFrame = (curFrame+1) % frameCount;
 
 	frameTimeLeft -= deltaMillis;
@@ -73,13 +74,13 @@ void displayFrame() {
 
 	for(int i=0; i<NUMPIXELS; i++) {
 		pixels.setPixelColor(i, blend(t, animation[curFrame*FRAMELENGTH + i], animation[nextFrame*FRAMELENGTH + i]));
-	}
+	}*/
 	pixels.show();
 
 	frameCounter++;
 }
 
-void (ZBRxResponse& packet) {
+void handleIncomingData(ZBRxResponse& packet) {
 	if (xbeeState == XBEESTATE_WAIT) {
 		//todo handle checkin response or incoming animation
 
@@ -107,29 +108,36 @@ void (ZBRxResponse& packet) {
 
 void blinkInfoLed(uint8_t count) {
 	for (uint8_t i=0; i<count; i++) {
-		digitalWrite(INFOLED, HIGH);
-		delay(50);
-		digitalWrite(INFOLED, LOW);
+		digitalWrite(INFO_LED, HIGH);
+		delay(25);
+		digitalWrite(INFO_LED, LOW);
 		if(i+1<count){
-			delay(200);
+			delay(100);
 		}
 	}
 }
 
 void waitForModem() {
+	uint8_t at[2] = {'A', 'P'};
 	while(1) {
-		AtCommandRequest cmdAt = AtCommandRequest("");
+		AtCommandRequest cmdAt = AtCommandRequest(at);
 		xbee.send(cmdAt);
+		Serial.println("DEBUG\tsent modem ATAP");
 		xbee.readPacket(100);
-		if(xbee.getResponse().isAvailable) {
+		Serial.println("DEBUG\treadPacket finished");
+		if(xbee.getResponse().isAvailable()) {
+			Serial.println("DEBUG\tresponse available");
 			if (xbee.getResponse().getApiId() == AT_RESPONSE) {
+				Serial.println("DEBUG\tgot ATAP command response");
 				AtCommandResponse atResponse = AtCommandResponse();
 				xbee.getResponse().getAtCommandResponse(atResponse);
+				Serial.print("DEBUG\tATAP status: "); Serial.println(atResponse.getStatus());
 				if (atResponse.getStatus() == 0) {
-					return;
+					return; // todo assert that we have ATAP2
 				}
 			}
 		}
+		delay(100);
 	}
 }
 
@@ -139,17 +147,20 @@ ZBTxRequest txCheckin = ZBTxRequest(addrBcast, checkinPayload, sizeof(checkinPay
 
 void sendCheckin() {
 	Serial.println("INFO\tsending checkin");
+	digitalWrite(INFO_LED, HIGH);
   	xbee.send(txCheckin);
+	digitalWrite(INFO_LED, LOW);
 }
 
 void waitForBootCheckin() {
   	while(1) {
 	  	sendCheckin();
 	  	uint64_t sentMillis = millis();
-	  	while(millis() - sentMillis < 500) {
+	  	while(millis() - sentMillis < 2500) {
 		  	xbee.readPacket(100);
 		  	if (xbee.getResponse().isAvailable()) {
 		  		XBeeResponse& packet = xbee.getResponse();
+		  		Serial.print("DEBUG\tgot packet "); Serial.println(packet.getApiId());
 		  		if(packet.getApiId() == ZB_RX_RESPONSE) {
 					ZBRxResponse rxPacket;
 					packet.getZBRxResponse(rxPacket);
@@ -172,22 +183,25 @@ void setup() {
 
 	pixels.begin();
 
-	pinMode(INFOLED, OUTPUT);
+	pinMode(INFO_LED, OUTPUT);
 	blinkInfoLed(1);
 	Serial.println("INFO\tbooted");
+	delay(500);
 
 	waitForModem();
 	blinkInfoLed(2);
 	Serial.println("INFO\tmodem AT OK");
+	delay(500);
 
 	waitForBootCheckin();
 	blinkInfoLed(3);
 	Serial.println("INFO\tboot checkin passed");
+	delay(500);
 
 	// TODO move chunk below to 'start animation'
-	lastMillis = millis();
+	/*lastMillis = millis();
 	curFrame = 0;
-	curFrameTime = frameTimeLeft = animation[curFrame*FRAMELENGTH + NUMPIXELS];
+	curFrameTime = frameTimeLeft = animation[curFrame*FRAMELENGTH + NUMPIXELS];*/
 }
 
 void loop() {
@@ -200,6 +214,7 @@ void loop() {
 	curMillis = millis();
 	if (xbeeState == XBEESTATE_WAIT && (curMillis-xbeeLastTransmissionMillis)>15000) {
 		sendCheckin();
+		xbeeLastTransmissionMillis = curMillis;
 	}
 	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-xbeeLastTransmissionMillis)>15000) {
 		Serial.println("WARN\tdata receive timed outed");
@@ -209,14 +224,14 @@ void loop() {
 	xbee.readPacket();
 	XBeeResponse& packet = xbee.getResponse();
 	if (xbee.getResponse().isAvailable()) {
-		Serial.print("DEBUG\tgot packet, api id: "); Serial.println(packet.getApiId());
+		Serial.print("DEBUG\tgot packet, api id="); Serial.println(packet.getApiId());
+		ZBRxResponse rxPacket = ZBRxResponse();
 		switch(packet.getApiId()) {
 			case ZB_RX_RESPONSE:
-				digitalWrite(INFOLED, HIGH);
-				ZBRxResponse rxPacket;
+				digitalWrite(INFO_LED, HIGH);
 				packet.getZBRxResponse(rxPacket);
 				handleIncomingData(rxPacket);
-				digitalWrite(INFOLED, LOW);
+				digitalWrite(INFO_LED, LOW);
 				break;
 			case ZB_TX_STATUS_RESPONSE:
 				// ignore this
@@ -224,7 +239,7 @@ void loop() {
 				// and the rest - server will just retry
 				break;
 			default:
-				Serial.print("WARN\tunhandled packet, api id: "); 
+				Serial.print("WARN\tunhandled packet, api id=");
 				Serial.println(packet.getApiId());
 		}
 	}
