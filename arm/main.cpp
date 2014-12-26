@@ -82,8 +82,6 @@ void printFps() {
 		lastReport = curReport;
 		frameCounter = 0;
 	}
-
-	lastMillis = curMillis;
 }
 
 void setAllPixelsTo(uint32_t color) {
@@ -94,7 +92,10 @@ void setAllPixelsTo(uint32_t color) {
 }
 
 void displayFrame() {
-	uint8_t deltaMillis = curMillis - lastMillis;
+	uint64_t deltaMillis = curMillis - lastMillis;
+	if(deltaMillis < 5) {
+		return; //fps limiter
+	}
 	uint16_t nextFrame = (curFrame+1) % framesCount;
 
 	frameTimeLeft -= deltaMillis;
@@ -114,18 +115,7 @@ void displayFrame() {
 	}
 	pixels.show();
 
-	/*
-	Serial.println("---");
-	Serial.print("time\t"); Serial.print(curFrameTime-frameTimeLeft);  Serial.print(" / "); Serial.println(curFrameTime);
-	Serial.print("src\t");
-		Serial.print(frames[curFrame*FRAMELENGTH], HEX); Serial.print(" ");
-		Serial.println(frames[nextFrame*FRAMELENGTH], HEX);
-	Serial.print("blend\t");
-		Serial.print(t); Serial.print(" ");
-		Serial.println(blend(t, frames[curFrame*FRAMELENGTH], frames[nextFrame*FRAMELENGTH]), HEX);
-
-	delay(250);*/
-
+	lastMillis = curMillis;
 	frameCounter++;
 }
 
