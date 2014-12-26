@@ -1,16 +1,13 @@
 package com.amazon.pipeitor;
 
-import com.rapplogic.xbee.api.ApiId;
 import com.rapplogic.xbee.api.XBee;
 import com.rapplogic.xbee.api.XBeeAddress64;
 import com.rapplogic.xbee.api.XBeeResponse;
-import com.rapplogic.xbee.api.wpan.TxRequest64;
 import com.rapplogic.xbee.api.zigbee.ZNetRxResponse;
 import com.rapplogic.xbee.api.zigbee.ZNetTxRequest;
 import org.slf4j.Logger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -45,6 +42,10 @@ public class XBeeRadio implements Radio {
 
     private class XBeeRadioThread extends Thread {
 
+        public XBeeRadioThread() {
+            setName("XBeeRadioThread");
+        }
+
         @Override
         public void run() {
             while (!Thread.interrupted()) {
@@ -52,13 +53,18 @@ public class XBeeRadio implements Radio {
                     synchronized (XBeeRadio.this) {
                         final XBeeResponse response = xbee.getResponse();
                         log.debug("got packet {}", response.getApiId());
-                        if (response.getApiId() == ApiId.ZNET_RX_RESPONSE) {
-                            final ZNetRxResponse rxResponse = (ZNetRxResponse) response;
-                            for (RadioListener listener : listeners) {
-                                listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
-                            }
-                        } else {
-                            log.warn("unknown packet {}", response.getApiId());
+                        switch(response.getApiId()) {
+                            case ZNET_RX_RESPONSE:
+                                final ZNetRxResponse rxResponse = (ZNetRxResponse) response;
+                                for (RadioListener listener : listeners) {
+                                    listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
+                                }
+                                break;
+                            case ZNET_TX_STATUS_RESPONSE:
+                                //todo handle this?
+                                break;
+                            default:
+                                log.warn("unknown packet {}", response.getApiId());
                         }
                     }
                 } catch (Exception e) {

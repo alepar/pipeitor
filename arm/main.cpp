@@ -1,24 +1,18 @@
-#define PIN         2
-#define INFO_LED		13
+#include <stdint.h>
 
-#define NUMPIXELS	7
-#define FRAMELENGTH	(NUMPIXELS+1)
+// --- timekeeping ----------
+uint64_t curMillis;
 
-#define XBEESTATE_WAIT		1
-#define XBEESTATE_RECEIVE	2
-
-#include <math.h>
+// --- animation ------------
+#define PIXELSPIN	2
+#define INFO_LED	13
+#define PIXELSNUM	7
+#define FRAMELENGTH	(PIXELSNUM+1)
 
 #include <Adafruit_NeoPixel.h>
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-
-#include <XBee.h>
-XBee xbee = XBee();
-
 #include "gammas.h"
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(PIXELSNUM, PIXELSPIN, NEO_GRB + NEO_KHZ800);
 
-
-// animation
 uint32_t *frames = NULL;
 uint16_t frameCount = 0;
 uint8_t animationState = 0;
@@ -29,30 +23,54 @@ uint32_t frameTimeLeft;
 uint32_t curFrameTime;
 
 uint64_t lastMillis;
-uint64_t curMillis;
 
-// xbee state
+// --- xbee state -----------
+#define XBEESTATE_WAIT		1
+#define XBEESTATE_RECEIVE	2
+#define ADDR_BCAST_MSB 0x00000000
+#define ADDR_BCAST_LSB 0x0000FFFF
+#define COORDINATOR_LOST_MILLIS 		60000
+#define COORDINATOR_HEARTBEAT_MILLIS 	15000
+#define COORDINATOR_RETRY_MILLIS 		2500
+
+#include <XBee.h>
+XBee xbee = XBee();
+
 uint8_t xbeeState = XBEESTATE_WAIT;
-uint64_t xbeeLastTransmissionMillis;
+
+XBeeAddress64 coordinatorAddr = XBeeAddress64(ADDR_BCAST_MSB, ADDR_BCAST_LSB);
+uint8_t checkinPayload[] = "checkin"; // todo construct proper checkin payload
+ZBTxRequest checkinPacket = ZBTxRequest(coordinatorAddr, checkinPayload, sizeof(checkinPayload));
+
+uint64_t checkinLastTxMillis = 0;
+uint64_t checkinLastRxMillis = 0;
+uint64_t animationLastRxMillis = 0;
 
 uint32_t *data = NULL;
-uint32_t rxSH, rxSL;
 
-// fps counter
+// --- fps counter ----------
 uint64_t lastReport = 0;
 uint16_t frameCounter = 0;
 
 void printFps() {
 	uint64_t curReport = curMillis / 1000;
 	if(curReport != lastReport) {
-		Serial.print(frameCounter);
-		Serial.print('\r');
+		//todo uncomment
+		//Serial.print(frameCounter);
+		//Serial.print('\r');
 
 		lastReport = curReport;
 		frameCounter = 0;
 	}
 
 	lastMillis = curMillis;
+}
+
+void setAllPixelsTo(uint32_t color) {
+	for(int i=0; i<PIXELSNUM; i++) {
+		pixels.setPixelColor(i, color);
+	}
+	pixels.show();
 }
 
 void displayFrame() {
@@ -80,9 +98,23 @@ void displayFrame() {
 	frameCounter++;
 }
 
-void handleIncomingData(ZBRxResponse& packet) {
+void handleRx(ZBRxResponse& packet) {
 	if (xbeeState == XBEESTATE_WAIT) {
-		//todo handle checkin response or incoming animation
+		//todo handle incoming animation
+
+		// todo better recognition of incoming packet type
+		if(packet.getData()[0] == 'c') {
+			// todo signature check
+			if(coordinatorAddr.getLsb() == ADDR_BCAST_LSB && coordinatorAddr.getMsb() == ADDR_BCAST_MSB) {
+				coordinatorAddr.setMsb(packet.getRemoteAddress64().getMsb());
+				coordinatorAddr.setLsb(packet.getRemoteAddress64().getLsb());
+				Serial.print("INFO\tnew coordinator address "); Serial.print(coordinatorAddr.getMsb(), HEX); Serial.print(" "); Serial.println(coordinatorAddr.getLsb(), HEX);
+			}
+			if(packet.getRemoteAddress64().getMsb() == coordinatorAddr.getMsb() && packet.getRemoteAddress64().getLsb() == coordinatorAddr.getLsb()) {
+				Serial.println("INFO\tgot checkin response");
+				checkinLastRxMillis = curMillis;
+			}
+		}
 
 		/*
 			incoming animation:
@@ -100,7 +132,7 @@ void handleIncomingData(ZBRxResponse& packet) {
 
 		//check for sender address
 
-		xbeeLastTransmissionMillis = curMillis; // todo if(successful)
+		animationLastRxMillis = curMillis; // todo if(successful)
 
 		//check if this is all of it and send ACK
 	}
@@ -141,39 +173,12 @@ void waitForModem() {
 	}
 }
 
-uint8_t checkinPayload[] = "checkin"; // todo construct proper checkin payload
-XBeeAddress64 addrBcast = XBeeAddress64(0x00000000, 0x0000FFFF);
-ZBTxRequest txCheckin = ZBTxRequest(addrBcast, checkinPayload, sizeof(checkinPayload));
-
 void sendCheckin() {
 	Serial.println("INFO\tsending checkin");
 	digitalWrite(INFO_LED, HIGH);
-  	xbee.send(txCheckin);
+  	xbee.send(checkinPacket);
+  	checkinLastTxMillis = curMillis;
 	digitalWrite(INFO_LED, LOW);
-}
-
-void waitForBootCheckin() {
-  	while(1) {
-	  	sendCheckin();
-	  	uint64_t sentMillis = millis();
-	  	while(millis() - sentMillis < 2500) {
-		  	xbee.readPacket(100);
-		  	if (xbee.getResponse().isAvailable()) {
-		  		XBeeResponse& packet = xbee.getResponse();
-		  		Serial.print("DEBUG\tgot packet "); Serial.println(packet.getApiId());
-		  		if(packet.getApiId() == ZB_RX_RESPONSE) {
-					ZBRxResponse rxPacket;
-					packet.getZBRxResponse(rxPacket);
-					// todo check that checkin response belongs to coordinator
-
-					Serial.println("INFO\tcheckin OK");
-					xbeeState = XBEESTATE_WAIT;
-					xbeeLastTransmissionMillis = millis();
-					return;
-		  		}
-		  	}
-	    }
-	}	
 }
 
 void setup() {
@@ -182,21 +187,22 @@ void setup() {
 	xbee.setSerial(Serial3);
 
 	pixels.begin();
-
 	pinMode(INFO_LED, OUTPUT);
-	blinkInfoLed(1);
+
+	setAllPixelsTo(0x040000);
+	delay(50);
+	setAllPixelsTo(0x000000);
 	Serial.println("INFO\tbooted");
 	delay(500);
 
 	waitForModem();
 	blinkInfoLed(2);
-	Serial.println("INFO\tmodem AT OK");
+	Serial.println("INFO\tmodem ATAP OK");
 	delay(500);
 
-	waitForBootCheckin();
-	blinkInfoLed(3);
-	Serial.println("INFO\tboot checkin passed");
-	delay(500);
+	curMillis = millis();
+	// trigger checkin at boot
+	checkinLastRxMillis = checkinLastTxMillis = curMillis - COORDINATOR_HEARTBEAT_MILLIS - 1000;
 
 	// TODO move chunk below to 'start animation'
 	/*lastMillis = millis();
@@ -212,25 +218,16 @@ void loop() {
 	printFps();	
 
 	curMillis = millis();
-	if (xbeeState == XBEESTATE_WAIT && (curMillis-xbeeLastTransmissionMillis)>15000) {
-		sendCheckin();
-		xbeeLastTransmissionMillis = curMillis;
-	}
-	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-xbeeLastTransmissionMillis)>15000) {
-		Serial.println("WARN\tdata receive timed outed");
-		xbeeState = XBEESTATE_WAIT;
-	}
-
 	xbee.readPacket();
 	XBeeResponse& packet = xbee.getResponse();
 	if (xbee.getResponse().isAvailable()) {
-		Serial.print("DEBUG\tgot packet, api id="); Serial.println(packet.getApiId());
+		Serial.print("DEBUG\tgot packet, api id "); Serial.println(packet.getApiId(), HEX);
 		ZBRxResponse rxPacket = ZBRxResponse();
 		switch(packet.getApiId()) {
 			case ZB_RX_RESPONSE:
 				digitalWrite(INFO_LED, HIGH);
 				packet.getZBRxResponse(rxPacket);
-				handleIncomingData(rxPacket);
+				handleRx(rxPacket);
 				digitalWrite(INFO_LED, LOW);
 				break;
 			case ZB_TX_STATUS_RESPONSE:
@@ -239,9 +236,25 @@ void loop() {
 				// and the rest - server will just retry
 				break;
 			default:
-				Serial.print("WARN\tunhandled packet, api id=");
-				Serial.println(packet.getApiId());
+				Serial.print("WARN\tunhandled packet, api id "); Serial.println(packet.getApiId(), HEX);
 		}
+	}
+
+	if (xbeeState == XBEESTATE_WAIT) {
+		if ((curMillis - checkinLastRxMillis > COORDINATOR_LOST_MILLIS) &&
+				(coordinatorAddr.getMsb() != ADDR_BCAST_MSB || coordinatorAddr.getLsb() != ADDR_BCAST_LSB)) {
+			Serial.println("WARN\tlost coordinator, resorting to broadcast");
+			coordinatorAddr.setMsb(ADDR_BCAST_MSB);
+			coordinatorAddr.setLsb(ADDR_BCAST_LSB);
+		}
+		if ((curMillis - checkinLastRxMillis > COORDINATOR_HEARTBEAT_MILLIS) && (curMillis-checkinLastTxMillis > COORDINATOR_RETRY_MILLIS)) {
+			sendCheckin();
+			checkinLastTxMillis = curMillis;
+		}
+	}
+	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-animationLastRxMillis)>15000) {
+		Serial.println("WARN\tdata receive timed outed");
+		xbeeState = XBEESTATE_WAIT;
 	}
 }
 
