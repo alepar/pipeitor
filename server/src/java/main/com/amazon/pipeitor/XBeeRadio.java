@@ -1,5 +1,6 @@
 package com.amazon.pipeitor;
 
+import com.rapplogic.xbee.api.PacketListener;
 import com.rapplogic.xbee.api.XBee;
 import com.rapplogic.xbee.api.XBeeAddress64;
 import com.rapplogic.xbee.api.XBeeResponse;
@@ -23,7 +24,38 @@ public class XBeeRadio implements Radio {
     public XBeeRadio(XBee xbee) {
         this.xbee = xbee;
 
-        new XBeeRadioThread().start();
+        xbee.addPacketListener(new PacketListener());
+    }
+
+    private class PacketListener implements com.rapplogic.xbee.api.PacketListener {
+        @Override
+        public void processResponse(XBeeResponse xBeeResponse) {
+            try {
+                synchronized (XBeeRadio.this) {
+                    final XBeeResponse response = xbee.getResponse();
+                    log.debug("got packet {}", response.getApiId());
+                    switch(response.getApiId()) {
+                        case ZNET_RX_RESPONSE:
+                            final ZNetRxResponse rxResponse = (ZNetRxResponse) response;
+                            if (rxResponse.getData().length == 0) {
+                                log.warn("data is empty, skipping");
+                                return;
+                            }
+                            for (RadioListener listener : listeners) {
+                                listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
+                            }
+                            break;
+                        case ZNET_TX_STATUS_RESPONSE:
+                            //todo handle this?
+                            break;
+                        default:
+                            log.warn("unknown packet {}", response.getApiId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("uncaught exception in event handler loop", e);
+            }
+        }
     }
 
     @Override
@@ -38,45 +70,6 @@ public class XBeeRadio implements Radio {
         } catch (IOException e) {
             throw new RuntimeException("failed to send packet", e);
         }
-    }
-
-    private class XBeeRadioThread extends Thread {
-
-        public XBeeRadioThread() {
-            setName("XBeeRadioThread");
-        }
-
-        @Override
-        public void run() {
-            while (!Thread.interrupted()) {
-                try {
-                    synchronized (XBeeRadio.this) {
-                        final XBeeResponse response = xbee.getResponse();
-                        log.debug("got packet {}", response.getApiId());
-                        switch(response.getApiId()) {
-                            case ZNET_RX_RESPONSE:
-                                final ZNetRxResponse rxResponse = (ZNetRxResponse) response;
-                                if (rxResponse.getData().length == 0) {
-                                    log.warn("data is empty, skipping");
-                                    continue;
-                                }
-                                for (RadioListener listener : listeners) {
-                                    listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
-                                }
-                                break;
-                            case ZNET_TX_STATUS_RESPONSE:
-                                //todo handle this?
-                                break;
-                            default:
-                                log.warn("unknown packet {}", response.getApiId());
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("uncaught exception in event handler loop", e);
-                }
-            }
-        }
-
     }
 
     private static int[] toIntArray(byte[] bytes) {

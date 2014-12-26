@@ -14,13 +14,13 @@ uint64_t curMillis;
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(PIXELSNUM, PIXELSPIN, NEO_GRB + NEO_KHZ800);
 
 uint32_t *frames = NULL;
-uint16_t frameCount = 0;
+uint16_t framesCount = 0;
 uint8_t animationState = 0;
 
 // animation - current frame state
 uint16_t curFrame;
-uint32_t frameTimeLeft;
-uint32_t curFrameTime;
+int32_t frameTimeLeft;
+int32_t curFrameTime;
 
 uint64_t lastMillis;
 
@@ -32,9 +32,14 @@ uint64_t lastMillis;
 #define COORDINATOR_LOST_MILLIS 		60000
 #define COORDINATOR_HEARTBEAT_MILLIS 	15000
 #define COORDINATOR_RETRY_MILLIS 		2500
+#define DATA_TRANSFER_TIMEOUT_MILLIS	15000
 
-#define PKT_CHECKIN 0x01
-#define PKT_CHECKIN_RESPONSE 0x02
+#define PKT_CHECKIN 			0x01
+#define PKT_CHECKIN_RESPONSE 	0x02
+#define PKT_ANIMATION_REQUEST 	0x03
+#define PTK_ANIMATION_RESPONSE 	0x04
+#define PKT_ANIMATION_DATA 		0x04
+#define PTK_ANIMATION_SUCCESS	0x05
 
 #include <XBee.h>
 XBee xbee = XBee();
@@ -42,14 +47,26 @@ XBee xbee = XBee();
 uint8_t xbeeState = XBEESTATE_WAIT;
 
 XBeeAddress64 coordinatorAddr = XBeeAddress64(ADDR_BCAST_MSB, ADDR_BCAST_LSB);
+
 uint8_t checkinPayload[] = { PKT_CHECKIN }; // todo construct proper checkin payload
 ZBTxRequest checkinPacket = ZBTxRequest(coordinatorAddr, checkinPayload, sizeof(checkinPayload));
+
+uint8_t animationResponsePayload[] = {PTK_ANIMATION_RESPONSE};
+ZBTxRequest animationResponsePacket = ZBTxRequest(coordinatorAddr, animationResponsePayload, sizeof(animationResponsePayload));
+
+uint8_t animationSuccessPayload[] = {PTK_ANIMATION_SUCCESS};
+ZBTxRequest animationSuccessPacket = ZBTxRequest(coordinatorAddr, animationSuccessPayload, sizeof(animationSuccessPayload));
 
 uint64_t checkinLastTxMillis = 0;
 uint64_t checkinLastRxMillis = 0;
 uint64_t animationLastRxMillis = 0;
 
-uint32_t *data = NULL;
+#define MAX_ANIMATION_LENGTH 5120
+uint32_t data[2][MAX_ANIMATION_LENGTH];
+uint16_t dataIncomingLength;
+byte dataNextSlot = 0;
+uint16_t dataTransferOffset;
+uint8_t dataTransferByte;
 
 // --- fps counter ----------
 uint64_t lastReport = 0;
@@ -77,28 +94,43 @@ void setAllPixelsTo(uint32_t color) {
 }
 
 void displayFrame() {
-	// todo fix animation
-/*	uint8_t deltaMillis = curMillis - lastMillis;
-	uint16_t nextFrame = (curFrame+1) % frameCount;
+	uint8_t deltaMillis = curMillis - lastMillis;
+	uint16_t nextFrame = (curFrame+1) % framesCount;
 
 	frameTimeLeft -= deltaMillis;
 
 	while(frameTimeLeft < 0) {
 		curFrame = nextFrame;
-		nextFrame = (curFrame+1) % frameCount;
+		nextFrame = (curFrame+1) % framesCount;
 
-		curFrameTime = animation[curFrame*FRAMELENGTH + NUMPIXELS];
+		curFrameTime = frames[curFrame*FRAMELENGTH + PIXELSNUM];
 		frameTimeLeft += curFrameTime;
 	}
 
 	uint16_t t = gammasLength * (curFrameTime-frameTimeLeft) / curFrameTime;
 
-	for(int i=0; i<NUMPIXELS; i++) {
-		pixels.setPixelColor(i, blend(t, animation[curFrame*FRAMELENGTH + i], animation[nextFrame*FRAMELENGTH + i]));
-	}*/
+	for(int i=0; i<PIXELSNUM; i++) {
+		pixels.setPixelColor(i, blend(t, frames[curFrame*FRAMELENGTH + i], frames[nextFrame*FRAMELENGTH + i]));
+	}
 	pixels.show();
 
+	/*
+	Serial.println("---");
+	Serial.print("time\t"); Serial.print(curFrameTime-frameTimeLeft);  Serial.print(" / "); Serial.println(curFrameTime);
+	Serial.print("src\t");
+		Serial.print(frames[curFrame*FRAMELENGTH], HEX); Serial.print(" ");
+		Serial.println(frames[nextFrame*FRAMELENGTH], HEX);
+	Serial.print("blend\t");
+		Serial.print(t); Serial.print(" ");
+		Serial.println(blend(t, frames[curFrame*FRAMELENGTH], frames[nextFrame*FRAMELENGTH]), HEX);
+
+	delay(250);*/
+
 	frameCounter++;
+}
+
+bool packetFromCoordinator(ZBRxResponse& packet) {
+	return packet.getRemoteAddress64().getMsb() == coordinatorAddr.getMsb() && packet.getRemoteAddress64().getLsb() == coordinatorAddr.getLsb();
 }
 
 void handleRx(ZBRxResponse& packet) {
@@ -114,27 +146,80 @@ void handleRx(ZBRxResponse& packet) {
 				coordinatorAddr.setLsb(packet.getRemoteAddress64().getLsb());
 				Serial.print("INFO\tnew coordinator address "); Serial.print(coordinatorAddr.getMsb(), HEX); Serial.print(" "); Serial.println(coordinatorAddr.getLsb(), HEX);
 			}
-			if(packet.getRemoteAddress64().getMsb() == coordinatorAddr.getMsb() && packet.getRemoteAddress64().getLsb() == coordinatorAddr.getLsb()) {
+			if(packetFromCoordinator(packet)) {
 				Serial.println("INFO\tgot checkin response");
 				checkinLastRxMillis = curMillis;
 			}
+			else {
+				Serial.print("WARN\tcheckin response from unknown source "); Serial.print(packet.getRemoteAddress64().getMsb(), HEX); Serial.print(" "); Serial.println(packet.getRemoteAddress64().getLsb(), HEX);
+				return;
+			}
 			break;
-		case 123:
-			//todo handle incoming animation
+		case PKT_ANIMATION_REQUEST:
+			if(!packetFromCoordinator(packet)) {
+				Serial.print("WARN\tanimation request from unknown source "); Serial.print(packet.getRemoteAddress64().getMsb(), HEX); Serial.print(" "); Serial.println(packet.getRemoteAddress64().getLsb(), HEX);
+				return;
+			}
 
-			/*
-				incoming animation:
-				* read header (length)
-				* allocate memory
-				* remember source address
-			*/
-			//todo handle incoming animation
+			if(packet.getDataLength()<2) {
+				Serial.println("WARN\tmalformed animation request");
+				return;
+			}
 
-			//check for sender address
+			dataIncomingLength = packet.getData()[1]<<8 | packet.getData()[2];
+			if(dataIncomingLength > MAX_ANIMATION_LENGTH) {
+				dataIncomingLength = MAX_ANIMATION_LENGTH;
+			}
+			Serial.print("INFO\tanimation request, length "); Serial.println(dataIncomingLength);
 
-			animationLastRxMillis = curMillis; // todo if(successful)
+			xbeeState = XBEESTATE_RECEIVE;
+			dataTransferOffset = 0;
+			dataTransferByte = 0;
+			animationLastRxMillis = curMillis;
 
-			//check if this is all of it and send ACK
+			xbee.send(animationResponsePacket);
+			break;
+		case PKT_ANIMATION_DATA:
+			if(!packetFromCoordinator(packet)) {
+				Serial.print("WARN\tanimation data from unknown source "); Serial.print(packet.getRemoteAddress64().getMsb(), HEX); Serial.print(" "); Serial.println(packet.getRemoteAddress64().getLsb(), HEX);
+				return;
+			}
+
+			Serial.print("DEBUG\tanimation data, length "); Serial.println(packet.getDataLength()-1);
+			for (int i=1; i<packet.getDataLength(); i++) {
+				if(dataTransferOffset == dataIncomingLength) {
+					break;
+				}
+
+				data[dataNextSlot][dataTransferOffset] = (data[dataNextSlot][dataTransferOffset] << 8) | packet.getData()[i];
+				if(++dataTransferByte == 3) {
+					dataTransferByte = 0;
+					dataTransferOffset++;
+				}
+			}
+
+			animationLastRxMillis = curMillis;
+
+			if(dataTransferOffset*3 == dataIncomingLength) {
+				Serial.println("INFO\tanimation successful transmission");
+				xbee.send(animationSuccessPacket);
+				xbeeState = XBEESTATE_WAIT;
+
+				// (re)start animation
+				curMillis = lastMillis = millis();
+				curFrame = 0;
+				frames = &data[dataNextSlot][0];
+				dataNextSlot = (dataNextSlot+1) % 2;
+				framesCount = dataIncomingLength/3/FRAMELENGTH;
+				curFrameTime = frameTimeLeft = frames[curFrame*FRAMELENGTH + PIXELSNUM];
+
+				Serial.print("curFrame "); Serial.println(curFrame);
+				Serial.print("framesCount "); Serial.println(framesCount);
+				Serial.print("curFrameTime "); Serial.println(curFrameTime);
+				for(int i=0; i<dataIncomingLength/3; i++) {
+					Serial.println(frames[i], HEX);
+				}
+			}
 
 			break;
 	}
@@ -185,7 +270,7 @@ void sendCheckin() {
 
 void setup() {
 	Serial.begin(115200);
-	Serial3.begin(115200);
+	Serial3.begin(57600);
 	xbee.setSerial(Serial3);
 
 	pixels.begin();
@@ -203,18 +288,13 @@ void setup() {
 	delay(500);
 
 	curMillis = millis();
-	// trigger checkin at boot
+	// this will trigger immediate checkin
 	checkinLastRxMillis = checkinLastTxMillis = curMillis - COORDINATOR_HEARTBEAT_MILLIS - 1000;
-
-	// TODO move chunk below to 'start animation'
-	/*lastMillis = millis();
-	curFrame = 0;
-	curFrameTime = frameTimeLeft = animation[curFrame*FRAMELENGTH + NUMPIXELS];*/
 }
 
 void loop() {
 	curMillis = millis();
-	if(frames && frameCounter) {
+	if(frames && framesCount) {
 		displayFrame();
 	}
 	printFps();	
@@ -234,8 +314,6 @@ void loop() {
 				break;
 			case ZB_TX_STATUS_RESPONSE:
 				// ignore this
-				// assuming that network layer is good enough for handling most common cases
-				// and the rest - server will just retry
 				break;
 			default:
 				Serial.print("WARN\tunhandled packet, api id "); Serial.println(packet.getApiId(), HEX);
@@ -255,7 +333,7 @@ void loop() {
 			checkinLastTxMillis = curMillis;
 		}
 	}
-	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-animationLastRxMillis)>15000) {
+	if (xbeeState == XBEESTATE_RECEIVE && (curMillis-animationLastRxMillis)>DATA_TRANSFER_TIMEOUT_MILLIS) {
 		Serial.println("WARN\tdata receive timed outed");
 		xbeeState = XBEESTATE_WAIT;
 	}
