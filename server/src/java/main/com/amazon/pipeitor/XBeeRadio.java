@@ -56,6 +56,10 @@ public class XBeeRadio implements Radio {
                         switch(response.getApiId()) {
                             case ZNET_RX_RESPONSE:
                                 final ZNetRxResponse rxResponse = (ZNetRxResponse) response;
+                                if (rxResponse.getData().length == 0) {
+                                    log.warn("data is empty, skipping");
+                                    continue;
+                                }
                                 for (RadioListener listener : listeners) {
                                     listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
                                 }

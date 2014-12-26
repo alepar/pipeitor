@@ -33,13 +33,16 @@ uint64_t lastMillis;
 #define COORDINATOR_HEARTBEAT_MILLIS 	15000
 #define COORDINATOR_RETRY_MILLIS 		2500
 
+#define PKT_CHECKIN 0x01
+#define PKT_CHECKIN_RESPONSE 0x02
+
 #include <XBee.h>
 XBee xbee = XBee();
 
 uint8_t xbeeState = XBEESTATE_WAIT;
 
 XBeeAddress64 coordinatorAddr = XBeeAddress64(ADDR_BCAST_MSB, ADDR_BCAST_LSB);
-uint8_t checkinPayload[] = "checkin"; // todo construct proper checkin payload
+uint8_t checkinPayload[] = { PKT_CHECKIN }; // todo construct proper checkin payload
 ZBTxRequest checkinPacket = ZBTxRequest(coordinatorAddr, checkinPayload, sizeof(checkinPayload));
 
 uint64_t checkinLastTxMillis = 0;
@@ -99,11 +102,12 @@ void displayFrame() {
 }
 
 void handleRx(ZBRxResponse& packet) {
-	if (xbeeState == XBEESTATE_WAIT) {
-		//todo handle incoming animation
-
-		// todo better recognition of incoming packet type
-		if(packet.getData()[0] == 'c') {
+	if(packet.getDataLength() == 0) {
+		Serial.print("WARN\tgot emtpy packet from ");  Serial.print(packet.getRemoteAddress64().getMsb(), HEX); Serial.print(" "); Serial.println(packet.getRemoteAddress64().getLsb(), HEX);
+		return;
+	}
+	switch(packet.getData()[0]) {
+		case PKT_CHECKIN_RESPONSE:
 			// todo signature check
 			if(coordinatorAddr.getLsb() == ADDR_BCAST_LSB && coordinatorAddr.getMsb() == ADDR_BCAST_MSB) {
 				coordinatorAddr.setMsb(packet.getRemoteAddress64().getMsb());
@@ -114,27 +118,25 @@ void handleRx(ZBRxResponse& packet) {
 				Serial.println("INFO\tgot checkin response");
 				checkinLastRxMillis = curMillis;
 			}
-		}
+			break;
+		case 123:
+			//todo handle incoming animation
 
-		/*
-			incoming animation:
-			* read header (length)
-			* allocate memory
-			* remember source address
-		*/
+			/*
+				incoming animation:
+				* read header (length)
+				* allocate memory
+				* remember source address
+			*/
+			//todo handle incoming animation
 
-		/*
-			checkin response - update lastCheckin time if in proper state
-		*/
-	}
-	else if(xbeeState == XBEESTATE_RECEIVE) {
-		//todo handle incoming animation
+			//check for sender address
 
-		//check for sender address
+			animationLastRxMillis = curMillis; // todo if(successful)
 
-		animationLastRxMillis = curMillis; // todo if(successful)
+			//check if this is all of it and send ACK
 
-		//check if this is all of it and send ACK
+			break;
 	}
 }
 
@@ -240,6 +242,7 @@ void loop() {
 		}
 	}
 
+	curMillis = millis();
 	if (xbeeState == XBEESTATE_WAIT) {
 		if ((curMillis - checkinLastRxMillis > COORDINATOR_LOST_MILLIS) &&
 				(coordinatorAddr.getMsb() != ADDR_BCAST_MSB || coordinatorAddr.getLsb() != ADDR_BCAST_LSB)) {

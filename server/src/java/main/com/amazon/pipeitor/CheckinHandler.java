@@ -2,21 +2,17 @@ package com.amazon.pipeitor;
 
 import org.slf4j.Logger;
 
-import java.util.Arrays;
-
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class CheckinHandler implements RadioListener {
 
     private static final Logger log = getLogger(CheckinHandler.class);
 
-    private static byte[] checkinFingerprint = "checkin\0".getBytes();
-
     @Override
     public void handleDataPacket(Radio radio, int[] remoteAddress, byte[] data) {
-        if(Arrays.equals(data, checkinFingerprint)) {
+        if(data[0] == Packet.CHECKIN.fingeprint) {
             log.debug("got checkin from {}", addressToString(remoteAddress));
-            radio.sendPacket(remoteAddress, "checkin ok\0".getBytes());
+            radio.sendPacket(remoteAddress, new byte[]{Packet.CHECKIN_RESPONSE.fingeprint});
         }
     }
 
