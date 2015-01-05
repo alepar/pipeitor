@@ -25,7 +25,7 @@ public class AnimationSuccessHandler implements RadioListener {
     }
 
     @Override
-    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, byte frameId) {
 
     }
 }

@@ -48,7 +48,7 @@ public class XBeeRadio implements Radio {
                         case ZNET_TX_STATUS_RESPONSE:
                             final ZNetTxStatusResponse statusResponse = (ZNetTxStatusResponse) response;
                             for (RadioListener listener : listeners) {
-                                listener.handleTxStatusPacket(XBeeRadio.this, statusResponse.getDeliveryStatus(), statusResponse.getFrameId());
+                                listener.handleTxStatusPacket(XBeeRadio.this, statusResponse.getDeliveryStatus(), (byte) statusResponse.getFrameId());
                             }
                             break;
                         default:
@@ -67,9 +67,11 @@ public class XBeeRadio implements Radio {
     }
 
     @Override
-    public synchronized void sendPacket(RemoteAddress dstAddress, byte[] data) {
+    public synchronized void sendPacket(RemoteAddress dstAddress, byte[] data, byte frameId) {
         try {
-            xbee.sendRequest(new ZNetTxRequest(new XBeeAddress64(dstAddress.array()), toIntArray(data)));
+            final ZNetTxRequest request = new ZNetTxRequest(new XBeeAddress64(dstAddress.array()), toIntArray(data));
+            request.setFrameId(frameId);
+            xbee.sendRequest(request);
         } catch (IOException e) {
             throw new RuntimeException("failed to send packet", e);
         }
@@ -89,14 +91,6 @@ public class XBeeRadio implements Radio {
             bytes[i] = (byte) ints[i];
         }
         return bytes;
-    }
-
-    private static String toString(int[] data) {
-        final char[] chars = new char[data.length];
-        for (int i = 0; i < data.length; i++) {
-            chars[i] = (char) data[i];
-        }
-        return new String(chars);
     }
 
 }

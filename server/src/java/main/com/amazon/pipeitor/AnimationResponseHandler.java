@@ -22,24 +22,26 @@ public class AnimationResponseHandler implements RadioListener {
         if(data[0] == Packet.ANIMATION_RESPONSE.fingeprint) {
             log.debug("got animation response from {}", remoteAddress);
 
-            final ByteBuffer animation = animationsController.getAnimation(remoteAddress);
-            if(animation != null && animation.remaining()>0) {
+            final Transmission animation = animationsController.getAnimation(remoteAddress);
+            if(animation != null && animation.data.remaining()>0) {
                 log.debug("got animation data for {}", remoteAddress);
-                sendNextAnimationPacket(radio, remoteAddress, animation);
+                sendNextAnimationPacket(radio, animation);
             }
         }
     }
 
     @Override
-    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, byte frameId) {
 
     }
 
-    public static void sendNextAnimationPacket(Radio radio, RemoteAddress remoteAddress, ByteBuffer animation) {
+    public static void sendNextAnimationPacket(Radio radio, Transmission transmission) {
+        final RemoteAddress remoteAddress = transmission.dst;
+        final ByteBuffer animation = transmission.data;
         final int size = Math.min(animation.remaining(), 50);
         final byte[] packetData = new byte[size+1];
         packetData[0] = Packet.ANIMATION_DATA.fingeprint;
         animation.get(packetData, 1, size);
-        radio.sendPacket(remoteAddress, packetData);
+        radio.sendPacket(remoteAddress, packetData, transmission.frameId);
     }
 }

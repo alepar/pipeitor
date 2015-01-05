@@ -3,7 +3,6 @@ package com.amazon.pipeitor;
 import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -24,13 +23,13 @@ public class TransmissionHandler implements RadioListener {
     }
 
     @Override
-    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
-        for (Map.Entry<RemoteAddress, ByteBuffer> entry : animationsController.getAnimations().entrySet()) {
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, byte frameId) {
+        for (Map.Entry<RemoteAddress, Transmission> entry : animationsController.getTransmissions().entrySet()) {
             final RemoteAddress dst = entry.getKey();
-            final ByteBuffer animation = entry.getValue();
-            if (animation != null && animation.remaining()>0) {
+            final Transmission transmission = entry.getValue();
+            if (transmission != null && transmission.data.remaining()>0 && transmission.frameId == frameId) {
                 log.debug("sending next animation data packet to {}", dst);
-                AnimationResponseHandler.sendNextAnimationPacket(radio, dst, animation);
+                AnimationResponseHandler.sendNextAnimationPacket(radio, transmission);
             }
         }
     }

@@ -19,12 +19,12 @@ public class CheckinHandler implements RadioListener {
     public void handleDataPacket(Radio radio, RemoteAddress remoteAddress, byte[] data) {
         if(data[0] == Packet.CHECKIN.fingeprint) {
             log.debug("got checkin from {}", remoteAddress);
-            radio.sendPacket(remoteAddress, new byte[]{Packet.CHECKIN_RESPONSE.fingeprint});
+            radio.sendPacket(remoteAddress, new byte[]{Packet.CHECKIN_RESPONSE.fingeprint}, (byte)0);
         }
     }
 
     @Override
-    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, byte frameId) {
 
     }
 }
