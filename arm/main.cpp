@@ -260,7 +260,7 @@ void sendCheckin() {
 
 void setup() {
 	Serial.begin(115200);
-	Serial3.begin(57600);
+	Serial3.begin(19200);
 	xbee.setSerial(Serial3);
 
 	pixels.begin();
