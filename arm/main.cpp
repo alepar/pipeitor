@@ -10,7 +10,6 @@ uint64_t curMillis;
 #define FRAMELENGTH	(PIXELSNUM+1)
 
 #include <Adafruit_NeoPixel.h>
-#include "gammas.h"
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(PIXELSNUM, PIXELSPIN, NEO_GRB + NEO_KHZ800);
 
 uint32_t *frames = NULL;
@@ -89,6 +88,25 @@ void setAllPixelsTo(uint32_t color) {
 		pixels.setPixelColor(i, color);
 	}
 	pixels.show();
+}
+
+uint32_t blend(uint32_t t, uint32_t src, uint32_t dst) {
+	if(src == dst) {
+		return src;
+	}
+
+	uint8_t srcR = src >> 16;
+	uint8_t dstR = dst >> 16;
+	uint8_t srcG = (src >> 8) & 0xff;
+	uint8_t dstG = (dst >> 8) & 0xff;
+	uint8_t srcB = src & 0xff;
+	uint8_t dstB = dst & 0xff;
+
+	uint8_t resR = (srcR*(1000-t) + dstR*t) / 1000;
+	uint8_t resG = (srcG*(1000-t) + dstG*t) / 1000;
+	uint8_t resB = (srcB*(1000-t) + dstB*t) / 1000;
+
+	return resR<<16 | resG<<8 | resB;
 }
 
 void displayFrame() {
