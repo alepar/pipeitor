@@ -38,8 +38,8 @@ uint64_t lastMillis;
 #define PKT_CHECKIN_RESPONSE 	0x02
 #define PKT_ANIMATION_REQUEST 	0x03
 #define PTK_ANIMATION_RESPONSE 	0x04
-#define PKT_ANIMATION_DATA 		0x04
-#define PTK_ANIMATION_SUCCESS	0x05
+#define PKT_ANIMATION_DATA 		0x05
+#define PTK_ANIMATION_SUCCESS	0x06
 
 #include <XBee.h>
 XBee xbee = XBee();
@@ -108,8 +108,7 @@ void displayFrame() {
 		frameTimeLeft += curFrameTime;
 	}
 
-	uint16_t t = gammasLength * (curFrameTime-frameTimeLeft) / curFrameTime;
-
+	uint32_t t = 1000 * (curFrameTime-frameTimeLeft) / curFrameTime;
 	for(int i=0; i<PIXELSNUM; i++) {
 		pixels.setPixelColor(i, blend(t, frames[curFrame*FRAMELENGTH + i], frames[nextFrame*FRAMELENGTH + i]));
 	}
@@ -160,6 +159,10 @@ void handleRx(ZBRxResponse& packet) {
 			if(dataIncomingLength > MAX_ANIMATION_LENGTH) {
 				dataIncomingLength = MAX_ANIMATION_LENGTH;
 			}
+			for(int i=0; i<dataIncomingLength/3; i++) {
+				data[dataNextSlot][i] = 0;
+			}
+
 			Serial.print("INFO\tanimation request, length "); Serial.println(dataIncomingLength);
 
 			xbeeState = XBEESTATE_RECEIVE;

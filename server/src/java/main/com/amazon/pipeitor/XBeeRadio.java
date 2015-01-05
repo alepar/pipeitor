@@ -1,6 +1,5 @@
 package com.amazon.pipeitor;
 
-import com.rapplogic.xbee.api.PacketListener;
 import com.rapplogic.xbee.api.XBee;
 import com.rapplogic.xbee.api.XBeeAddress64;
 import com.rapplogic.xbee.api.XBeeResponse;
@@ -42,7 +41,7 @@ public class XBeeRadio implements Radio {
                                 return;
                             }
                             for (RadioListener listener : listeners) {
-                                listener.handleDataPacket(XBeeRadio.this, rxResponse.getRemoteAddress64().getAddress(), toByteArray(rxResponse.getData()));
+                                listener.handleDataPacket(XBeeRadio.this, new XbeeRemoteAddress(rxResponse.getRemoteAddress64().getAddress()), toByteArray(rxResponse.getData()));
                             }
                             break;
                         case ZNET_TX_STATUS_RESPONSE:
@@ -64,9 +63,9 @@ public class XBeeRadio implements Radio {
     }
 
     @Override
-    public synchronized void sendPacket(int[] dstAddress, byte[] data) {
+    public synchronized void sendPacket(RemoteAddress dstAddress, byte[] data) {
         try {
-            xbee.sendRequest(new ZNetTxRequest(new XBeeAddress64(dstAddress), toIntArray(data)));
+            xbee.sendRequest(new ZNetTxRequest(new XBeeAddress64(dstAddress.array()), toIntArray(data)));
         } catch (IOException e) {
             throw new RuntimeException("failed to send packet", e);
         }

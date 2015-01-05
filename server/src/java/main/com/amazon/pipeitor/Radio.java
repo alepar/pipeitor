@@ -3,5 +3,5 @@ package com.amazon.pipeitor;
 public interface Radio {
     void addListener(RadioListener listener);
 
-    void sendPacket(int[] dstAddress, byte[] data);
+    void sendPacket(RemoteAddress dstAddress, byte[] data);
 }
