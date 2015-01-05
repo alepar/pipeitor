@@ -1,5 +1,6 @@
 package com.amazon.pipeitor;
 
+import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
@@ -21,5 +22,10 @@ public class AnimationSuccessHandler implements RadioListener {
             log.debug("got animation success from {}", remoteAddress);
             animationsController.fireAnimationSuccess(remoteAddress);
         }
+    }
+
+    @Override
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+
     }
 }

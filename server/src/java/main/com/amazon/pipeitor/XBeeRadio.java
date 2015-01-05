@@ -5,6 +5,7 @@ import com.rapplogic.xbee.api.XBeeAddress64;
 import com.rapplogic.xbee.api.XBeeResponse;
 import com.rapplogic.xbee.api.zigbee.ZNetRxResponse;
 import com.rapplogic.xbee.api.zigbee.ZNetTxRequest;
+import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -45,7 +46,10 @@ public class XBeeRadio implements Radio {
                             }
                             break;
                         case ZNET_TX_STATUS_RESPONSE:
-                            //todo handle this?
+                            final ZNetTxStatusResponse statusResponse = (ZNetTxStatusResponse) response;
+                            for (RadioListener listener : listeners) {
+                                listener.handleTxStatusPacket(XBeeRadio.this, statusResponse.getDeliveryStatus(), statusResponse.getFrameId());
+                            }
                             break;
                         default:
                             log.warn("unknown packet {}", response.getApiId());

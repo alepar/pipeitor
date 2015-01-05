@@ -93,7 +93,7 @@ void setAllPixelsTo(uint32_t color) {
 
 void displayFrame() {
 	uint64_t deltaMillis = curMillis - lastMillis;
-	if(deltaMillis < 5) {
+	if(deltaMillis < 1) {
 		return; //fps limiter
 	}
 	uint16_t nextFrame = (curFrame+1) % framesCount;

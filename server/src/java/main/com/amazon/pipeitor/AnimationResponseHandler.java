@@ -1,5 +1,6 @@
 package com.amazon.pipeitor;
 
+import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
 import java.nio.ByteBuffer;
@@ -21,16 +22,24 @@ public class AnimationResponseHandler implements RadioListener {
         if(data[0] == Packet.ANIMATION_RESPONSE.fingeprint) {
             log.debug("got animation response from {}", remoteAddress);
 
-            final byte[] animation = animationsController.getAnimation(remoteAddress);
-            if(animation != null) {
+            final ByteBuffer animation = animationsController.getAnimation(remoteAddress);
+            if(animation != null && animation.remaining()>0) {
                 log.debug("got animation data for {}", remoteAddress);
-                final byte[] sendData = new byte[animation.length + 1];
-                final ByteBuffer buf = ByteBuffer.wrap(sendData);
-                buf.put(Packet.ANIMATION_DATA.fingeprint);
-                buf.put(animation);
-
-                radio.sendPacket(remoteAddress, sendData);
+                sendNextAnimationPacket(radio, remoteAddress, animation);
             }
         }
+    }
+
+    @Override
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+
+    }
+
+    public static void sendNextAnimationPacket(Radio radio, RemoteAddress remoteAddress, ByteBuffer animation) {
+        final int size = Math.min(animation.remaining(), 50);
+        final byte[] packetData = new byte[size+1];
+        packetData[0] = Packet.ANIMATION_DATA.fingeprint;
+        animation.get(packetData, 1, size);
+        radio.sendPacket(remoteAddress, packetData);
     }
 }

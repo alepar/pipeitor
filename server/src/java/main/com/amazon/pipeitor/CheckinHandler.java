@@ -1,5 +1,6 @@
 package com.amazon.pipeitor;
 
+import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -22,4 +23,8 @@ public class CheckinHandler implements RadioListener {
         }
     }
 
+    @Override
+    public void handleTxStatusPacket(XBeeRadio radio, ZNetTxStatusResponse.DeliveryStatus status, int frameId) {
+
+    }
 }
