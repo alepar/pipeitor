@@ -48,13 +48,25 @@ uint8_t xbeeState = XBEESTATE_WAIT;
 XBeeAddress64 coordinatorAddr = XBeeAddress64(ADDR_BCAST_MSB, ADDR_BCAST_LSB);
 
 uint8_t checkinPayload[] = { PKT_CHECKIN }; // todo construct proper checkin payload
-ZBTxRequest checkinPacket = ZBTxRequest(coordinatorAddr, checkinPayload, sizeof(checkinPayload));
+ZBTxRequest checkinPacket = ZBTxRequest(
+		coordinatorAddr,
+		ZB_BROADCAST_ADDRESS, ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST,
+		checkinPayload, sizeof(checkinPayload), 0
+);
 
 uint8_t animationResponsePayload[] = {PTK_ANIMATION_RESPONSE};
-ZBTxRequest animationResponsePacket = ZBTxRequest(coordinatorAddr, animationResponsePayload, sizeof(animationResponsePayload));
+ZBTxRequest animationResponsePacket = ZBTxRequest(
+		coordinatorAddr,
+		ZB_BROADCAST_ADDRESS, ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST,
+		animationResponsePayload, sizeof(animationResponsePayload), 0
+);
 
 uint8_t animationSuccessPayload[] = {PTK_ANIMATION_SUCCESS};
-ZBTxRequest animationSuccessPacket = ZBTxRequest(coordinatorAddr, animationSuccessPayload, sizeof(animationSuccessPayload));
+ZBTxRequest animationSuccessPacket = ZBTxRequest(
+		coordinatorAddr,
+		ZB_BROADCAST_ADDRESS, ZB_BROADCAST_RADIUS_MAX_HOPS, ZB_TX_UNICAST,
+		animationSuccessPayload, sizeof(animationSuccessPayload), 0
+);
 
 uint64_t checkinLastTxMillis = 0;
 uint64_t checkinLastRxMillis = 0;
@@ -74,7 +86,7 @@ uint16_t frameCounter = 0;
 void printFps() {
 	uint64_t curReport = curMillis / 1000;
 	if(curReport != lastReport) {
-		//todo uncomment
+		// uncomment for fps display
 		//Serial.print(frameCounter);
 		//Serial.print('\r');
 
@@ -310,11 +322,16 @@ void loop() {
 	}
 	printFps();	
 
-	curMillis = millis();
-	xbee.readPacket();
-	XBeeResponse& packet = xbee.getResponse();
-	if (xbee.getResponse().isAvailable()) {
+	for (int i=0; i<5; i++) { // read a bunch of packages at a time, if available, but not too much
+		curMillis = millis();
+		xbee.readPacket();
+		XBeeResponse& packet = xbee.getResponse();
+
+		if (!xbee.getResponse().isAvailable()) {
+			break;
+		}
 		Serial.print("DEBUG\tgot packet, api id "); Serial.println(packet.getApiId(), HEX);
+
 		ZBRxResponse rxPacket = ZBRxResponse();
 		switch(packet.getApiId()) {
 			case ZB_RX_RESPONSE:
