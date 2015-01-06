@@ -29,6 +29,7 @@ public class TransmissionHandler implements RadioListener {
             final Transmission transmission = entry.getValue();
             if (transmission != null && transmission.data.remaining()>0 && transmission.frameId == frameId) {
                 log.debug("sending next animation data packet to {}", dst);
+                // todo handle retries
                 AnimationResponseHandler.sendNextAnimationPacket(radio, transmission);
             }
         }

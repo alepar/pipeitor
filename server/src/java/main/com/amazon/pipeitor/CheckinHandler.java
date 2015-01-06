@@ -20,6 +20,7 @@ public class CheckinHandler implements RadioListener {
         if(data[0] == Packet.CHECKIN.fingeprint) {
             log.debug("got checkin from {}", remoteAddress);
             radio.sendPacket(remoteAddress, new byte[]{Packet.CHECKIN_RESPONSE.fingeprint}, (byte)0);
+            animationsController.sendAnimation(remoteAddress, GreenBuildAnimation.animation);
         }
     }
 
