@@ -3,8 +3,6 @@ package com.amazon.pipeitor;
 import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
-import java.nio.ByteBuffer;
-
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class AnimationSuccessHandler implements RadioListener {

@@ -4,6 +4,7 @@ import com.rapplogic.xbee.api.zigbee.ZNetTxStatusResponse;
 import org.slf4j.Logger;
 
 import java.util.Map;
+import java.util.Random;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -27,11 +28,22 @@ public class TransmissionHandler implements RadioListener {
         for (Map.Entry<RemoteAddress, Transmission> entry : animationsController.getTransmissions().entrySet()) {
             final RemoteAddress dst = entry.getKey();
             final Transmission transmission = entry.getValue();
-            if (transmission != null && transmission.data.remaining()>0 && transmission.frameId == frameId) {
-                log.debug("sending next animation data packet to {}", dst);
-                // todo handle retries
-                AnimationResponseHandler.sendNextAnimationPacket(radio, transmission);
+            if (transmission != null && transmission.frameId == frameId) {
+                if(status == ZNetTxStatusResponse.DeliveryStatus.SUCCESS) {
+                    log.debug("got animation data transmission ack from {}", dst);
+                    transmission.acknowledgeLastPacket();
+                } else {
+                    log.error("packet transmission failed: {}", status);
+                }
+
+                final byte[] nextPacket = transmission.getCurPacket();
+                if(nextPacket != null) {
+                    log.debug("sending next animation data packet to {}", dst);
+                    radio.sendPacket(transmission.dst, nextPacket, transmission.frameId);
+                    transmission.updateLastSend();
+                }
             }
         }
     }
+
 }
